@@ -1,43 +1,180 @@
+
 <!DOCTYPE html>
 <html lang="uz">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>AI Manga Reader</title>
+
 <style>
+* {
+    box-sizing: border-box;
+}
+
 body {
     margin: 0;
     background: #111827;
     color: white;
     font-family: Arial, sans-serif;
+}
+
+header {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: #1f2937;
+    padding: 15px;
     text-align: center;
 }
-.container {
-    padding: 35px 20px;
+
+h2 {
+    margin: 0 0 12px;
 }
-h1 {
-    font-size: 27px;
-}
-p {
-    color: #cbd5e1;
-}
-button {
+
+button, .file-button {
+    display: inline-block;
     background: #2563eb;
     color: white;
-    border: none;
-    padding: 15px 28px;
-    border-radius: 12px;
-    font-size: 17px;
+    border: 0;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+#pdfInput {
+    display: none;
+}
+
+#status {
+    color: #cbd5e1;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+#pages {
+    padding: 10px;
+    max-width: 850px;
+    margin: auto;
+}
+
+.page {
+    margin: 0 auto 12px;
+    background: white;
+    box-shadow: 0 2px 8px #0008;
+}
+
+.page canvas {
+    display: block;
+    width: 100%;
+    height: auto;
 }
 </style>
 </head>
+
 <body>
-<div class="container">
-    <h1>📚 AI Manga Reader</h1>
-    <p>Manga, Manhwa va Manhua o‘qish oynasi</p>
-    <button onclick="alert('O‘quvchi oynasi tayyorlanmoqda!')">
-        📖 O‘qishni boshlash
-    </button>
-</div>
+
+<header>
+    <h2>📚 AI Manga Reader</h2>
+
+    <label class="file-button" for="pdfInput">
+        📂 PDF tanlash
+    </label>
+
+    <input
+        type="file"
+        id="pdfInput"
+        accept="application/pdf"
+    >
+
+    <div id="status">
+        PDF faylingizni tanlang
+    </div>
+</header>
+
+<main id="pages"></main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+"https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+
+const input = document.getElementById("pdfInput");
+const pages = document.getElementById("pages");
+const status = document.getElementById("status");
+
+input.addEventListener("change", async function() {
+    const file = input.files[0];
+
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+        status.textContent = "Faqat PDF fayl tanlang!";
+        return;
+    }
+
+    pages.innerHTML = "";
+    status.textContent = "PDF yuklanmoqda...";
+
+    try {
+        const data = await file.arrayBuffer();
+
+        const pdf = await pdfjsLib.getDocument({
+            data: data
+        }).promise;
+
+        status.textContent =
+            pdf.numPages + " ta sahifa topildi. Tayyorlanmoqda...";
+
+        for (let i = 1; i <= pdf.numPages; i++) {
+            const page = await pdf.getPage(i);
+
+            const container = document.createElement("div");
+            container.className = "page";
+
+            const canvas = document.createElement("canvas");
+            container.appendChild(canvas);
+            pages.appendChild(container);
+
+            const original = page.getViewport({ scale: 1 });
+
+            const scale = Math.min(
+                (window.innerWidth - 20) / original.width,
+                2
+            );
+
+            const viewport = page.getViewport({
+                scale: scale
+            });
+
+            const ratio = window.devicePixelRatio || 1;
+
+            canvas.width = Math.floor(viewport.width * ratio);
+            canvas.height = Math.floor(viewport.height * ratio);
+
+            const context = canvas.getContext("2d");
+
+            await page.render({
+                canvasContext: context,
+                viewport: viewport,
+                transform: [ratio, 0, 0, ratio, 0, 0]
+            }).promise;
+
+            status.textContent =
+                "Sahifa " + i + " / " + pdf.numPages;
+        }
+
+        status.textContent =
+            "✅ Barcha sahifalar tayyor! Yaxshi o‘qishlar.";
+
+    } catch (error) {
+        console.error(error);
+        status.textContent =
+            "❌ PDF ochilmadi. Boshqa fayl bilan sinab ko‘ring.";
+    }
+});
+</script>
+
 </body>
 </html>
