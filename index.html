@@ -196,41 +196,44 @@ input.addEventListener("change", async function() {
 
 ocrButton.addEventListener("click", async function() {
     if (!currentCanvas) {
-        status.textContent = "Avval sahifani ekranga chiqaring.";
+        status.textContent = "❌ Sahifa tanlanmagan!";
         return;
     }
 
     ocrButton.disabled = true;
-    status.textContent = "🔍 Matn aniqlanmoqda...";
+    result.textContent = "OCR tayyorlanmoqda...";
+    status.textContent = "🔍 OCR ishga tushmoqda...";
 
     try {
         if (!worker) {
-            status.textContent = "OCR tizimi yuklanmoqda...";
             worker = await Tesseract.createWorker("eng");
         }
 
+        status.textContent = "🔍 Rasm o‘qilmoqda...";
+
         const output = await worker.recognize(currentCanvas);
-        console.log(output.data);
+
         const text = output.data.text.trim();
 
-        result.textContent = text || "Matn topilmadi.";
-        
         result.textContent =
-    "Aniqlangan matn:\n" +
-    (text || "Matn topilmadi.") +
-    "\n\nIshonchlilik: " + output.data.confidence +
-    "%\nSo‘zlar soni: " + output.data.words.length;
+            "NATIJА:\n" +
+            (text || "Matn topilmadi.") +
+            "\n\nIshonchlilik: " +
+            output.data.confidence +
+            "%\nSo‘zlar soni: " +
+            output.data.words.length;
 
-        status.textContent = "✅ Matnni aniqlash tugadi!";
+        status.textContent = "✅ OCR tugadi!";
 
     } catch (error) {
         console.error(error);
-        status.textContent = "❌ OCR xatosi. Internetni tekshiring.";
+
+        result.textContent =
+            "XATOLIK:\n" + error.message;
+
+        status.textContent = "❌ OCR xatosi!";
     }
 
     ocrButton.disabled = false;
 });
-</script>
-
-</body>
-</html>
+    
