@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="uz">
 <head>
@@ -7,9 +6,7 @@
 <title>AI Manga Reader</title>
 
 <style>
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
@@ -23,33 +20,30 @@ header {
     top: 0;
     z-index: 10;
     background: #1f2937;
-    padding: 15px;
+    padding: 14px;
     text-align: center;
 }
 
-h2 {
-    margin: 0 0 12px;
-}
+h2 { margin: 0 0 12px; }
 
 button, .file-button {
     display: inline-block;
     background: #2563eb;
     color: white;
     border: 0;
-    padding: 12px 20px;
+    padding: 12px 16px;
     border-radius: 10px;
-    font-size: 16px;
+    font-size: 15px;
     cursor: pointer;
+    margin: 3px;
 }
 
-#pdfInput {
-    display: none;
-}
+#pdfInput { display: none; }
 
 #status {
     color: #cbd5e1;
-    font-size: 14px;
-    margin-top: 10px;
+    font-size: 13px;
+    margin-top: 9px;
 }
 
 #pages {
@@ -69,6 +63,16 @@ button, .file-button {
     width: 100%;
     height: auto;
 }
+
+#result {
+    background: #1f2937;
+    margin: 12px;
+    padding: 14px;
+    border-radius: 10px;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.6;
+}
 </style>
 </head>
 
@@ -81,20 +85,23 @@ button, .file-button {
         📂 PDF tanlash
     </label>
 
-    <input
-        type="file"
-        id="pdfInput"
-        accept="application/pdf"
-    >
+    <input type="file" id="pdfInput" accept="application/pdf">
 
-    <div id="status">
-        PDF faylingizni tanlang
-    </div>
+    <button id="ocrButton" disabled>
+        🔍 Matnni aniqlash
+    </button>
+
+    <div id="status">PDF faylingizni tanlang</div>
 </header>
+
+<div id="result">
+    Aniqlangan matn shu yerda chiqadi.
+</div>
 
 <main id="pages"></main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js"></script>
 
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc =
@@ -103,18 +110,35 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const input = document.getElementById("pdfInput");
 const pages = document.getElementById("pages");
 const status = document.getElementById("status");
+const result = document.getElementById("result");
+const ocrButton = document.getElementById("ocrButton");
+
+let currentCanvas = null;
+let worker = null;
+
+const observer = new IntersectionObserver(entries => {
+    const visible = entries
+        .filter(entry => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+
+    if (visible.length > 0) {
+        currentCanvas = visible[0].target;
+    }
+}, { threshold: [0.2, 0.5, 0.8] });
 
 input.addEventListener("change", async function() {
     const file = input.files[0];
-
     if (!file) return;
 
     if (file.type !== "application/pdf") {
-        status.textContent = "Faqat PDF fayl tanlang!";
+        status.textContent = "Faqat PDF tanlang!";
         return;
     }
 
     pages.innerHTML = "";
+    result.textContent = "Aniqlangan matn shu yerda chiqadi.";
+    currentCanvas = null;
+    ocrButton.disabled = true;
     status.textContent = "PDF yuklanmoqda...";
 
     try {
@@ -123,9 +147,6 @@ input.addEventListener("change", async function() {
         const pdf = await pdfjsLib.getDocument({
             data: data
         }).promise;
-
-        status.textContent =
-            pdf.numPages + " ta sahifa topildi. Tayyorlanmoqda...";
 
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
@@ -144,10 +165,7 @@ input.addEventListener("change", async function() {
                 2
             );
 
-            const viewport = page.getViewport({
-                scale: scale
-            });
-
+            const viewport = page.getViewport({ scale });
             const ratio = window.devicePixelRatio || 1;
 
             canvas.width = Math.floor(viewport.width * ratio);
@@ -161,18 +179,49 @@ input.addEventListener("change", async function() {
                 transform: [ratio, 0, 0, ratio, 0, 0]
             }).promise;
 
+            observer.observe(canvas);
+
             status.textContent =
                 "Sahifa " + i + " / " + pdf.numPages;
         }
 
-        status.textContent =
-            "✅ Barcha sahifalar tayyor! Yaxshi o‘qishlar.";
+        ocrButton.disabled = false;
+        status.textContent = "✅ PDF tayyor! Kerakli sahifaga o'ting.";
 
     } catch (error) {
         console.error(error);
-        status.textContent =
-            "❌ PDF ochilmadi. Boshqa fayl bilan sinab ko‘ring.";
+        status.textContent = "❌ PDF ochilmadi.";
     }
+});
+
+ocrButton.addEventListener("click", async function() {
+    if (!currentCanvas) {
+        status.textContent = "Avval sahifani ekranga chiqaring.";
+        return;
+    }
+
+    ocrButton.disabled = true;
+    status.textContent = "🔍 Matn aniqlanmoqda...";
+
+    try {
+        if (!worker) {
+            status.textContent = "OCR tizimi yuklanmoqda...";
+            worker = await Tesseract.createWorker("eng");
+        }
+
+        const output = await worker.recognize(currentCanvas);
+        const text = output.data.text.trim();
+
+        result.textContent = text || "Matn topilmadi.";
+
+        status.textContent = "✅ Matnni aniqlash tugadi!";
+
+    } catch (error) {
+        console.error(error);
+        status.textContent = "❌ OCR xatosi. Internetni tekshiring.";
+    }
+
+    ocrButton.disabled = false;
 });
 </script>
 
