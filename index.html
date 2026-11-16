@@ -210,9 +210,16 @@ ocrButton.addEventListener("click", async function() {
         }
 
         const output = await worker.recognize(currentCanvas);
+        console.log(output.data);
         const text = output.data.text.trim();
 
         result.textContent = text || "Matn topilmadi.";
+        
+        result.textContent =
+    "Aniqlangan matn:\n" +
+    (text || "Matn topilmadi.") +
+    "\n\nIshonchlilik: " + output.data.confidence +
+    "%\nSo‘zlar soni: " + output.data.words.length;
 
         status.textContent = "✅ Matnni aniqlash tugadi!";
 
